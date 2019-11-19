@@ -7,7 +7,7 @@ import (
 	"net/url"
 )
 
-type Config struct {
+type AuthData struct {
 	Creds   *Creds
 	Cookies []*BasicCookie
 }
@@ -17,7 +17,7 @@ type BasicCookie struct {
 	Value string
 }
 
-func (c *Config) SetCookies(cookies []*http.Cookie) {
+func (c *AuthData) SetCookies(cookies []*http.Cookie) {
 	c.Cookies = make([]*BasicCookie, len(cookies))
 	for i, cookie := range cookies {
 		c.Cookies[i] = &BasicCookie{
@@ -27,7 +27,7 @@ func (c *Config) SetCookies(cookies []*http.Cookie) {
 	}
 }
 
-func (c *Config) GetCookies() []*http.Cookie {
+func (c *AuthData) GetCookies() []*http.Cookie {
 	res := make([]*http.Cookie, len(c.Cookies))
 
 	for i, cookie := range c.Cookies {
