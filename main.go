@@ -87,6 +87,7 @@ func loadCreds() {
 }
 
 func saveCreds() {
+	authData.SetCookies(client.Jar.Cookies(overcastURL))
 	data, err := json.Marshal(authData)
 	if err != nil {
 		printf("[WARN] Failed to save credentials: %s\n", err)
@@ -140,9 +141,6 @@ func main() {
 	if err != nil {
 		printf("[ERROR] Auth failed: %s", err)
 		os.Exit(-1)
-	}
-	if args.SaveCreds {
-		defer saveCreds()
 	}
 
 	allowedExts := []string{
@@ -204,4 +202,16 @@ func main() {
 	}
 
 	performUpload(jobs, args.MaxParallel)
+	switch authData.state {
+	case credStateUnchanged:
+	case credStateModified:
+		saveCreds()
+	case credStateReplaced:
+		if args.SaveCreds {
+			saveCreds()
+		} else {
+			printf("[INFO] Credentials were changed but weren't saved.\n")
+			printf("       Use --save-creds to save them.\n")
+		}
+	}
 }
