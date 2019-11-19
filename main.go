@@ -179,6 +179,7 @@ func main() {
 
 		if stat.Size() > overcastParams.MaxFileSize {
 			printf("[WARN] File \"%s\" is too large, max size %.2f GB\n", file, float64(overcastParams.MaxFileSize)/1000000000)
+			continue
 		}
 
 		totalSize += stat.Size()
