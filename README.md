@@ -9,9 +9,9 @@ Sorry for the code quality, this is also my first go project. It works, whatever
 This project shouldn't cause any trouble, but I (of course) will shut it down if Marco isn't ok with it.
 
 ```
-Usage: cloudyuploader [--parallel-uploads PARALLEL-UPLOADS] [--login LOGIN] 
-                      [--password PASSWORD] [--store-cookie]
-                      [--store-password] [--silent] FILE [FILE ...]
+Usage: cloudyuploader [--parallel-uploads PARALLEL-UPLOADS] [--save-creds] 
+                      [--login LOGIN] [--password PASSWORD] [--silent]
+                      FILE [FILE ...]
 
 Positional arguments:
   FILE                   files to be uploaded
@@ -21,8 +21,7 @@ Options:
                          maximum number of concurrent upload jobs [default: 4]
   --login LOGIN          email for Overcast account
   --password PASSWORD    password for Overcast account
-  --store-cookie         store cookie to skip authorization [default: true]
-  --store-password       store (unencrypted) email/password [default: false]
+  --save-creds           save credentials in secure system storge [default: false]
   --silent, -s           disable user interaction
   --help, -h             display this help and exit
 ```
