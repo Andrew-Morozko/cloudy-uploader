@@ -43,10 +43,7 @@ Technically it's just a wrapper around upload a form at https://overcast.fm/uplo
 }
 
 func printf(format string, a ...interface{}) (int, error) {
-	if args.Silent {
-		return 0, nil
-	}
-	return fmt.Printf(format, a...)
+	return fmt.Fprintf(outputStream, format, a...)
 }
 
 func configLoad() {
@@ -87,6 +84,8 @@ func configSave() {
 	}
 }
 
+var outputStream *os.File
+
 func main() {
 	var err error
 
@@ -100,6 +99,12 @@ func main() {
 	if args.MaxParallel < 1 {
 		printf("[ERROR] --parallel-uploads should be at least 1")
 		os.Exit(-1)
+	}
+
+	if args.Silent {
+		outputStream, _ = os.Open(os.DevNull)
+	} else {
+		outputStream = os.Stdout
 	}
 
 	overcastURL, err = url.Parse("https://overcast.fm/")
