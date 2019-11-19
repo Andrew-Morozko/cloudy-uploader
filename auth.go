@@ -63,7 +63,14 @@ func auth(isSilent bool) (err error) {
 
 			if strings.HasSuffix(resp.Request.URL.Path, "uploads") {
 				// Wasn't redirected to /login, so cookies are valid
-				return parseUploadsPage(resp.Body)
+				err = parseUploadsPage(resp.Body)
+				if err != nil {
+					printf("[WARN] Failed to parse uploads page: %s\n", err)
+				}
+				return
+			} else {
+				// Clear the bad cookies
+				authData.Cookies = nil
 			}
 		}
 		printf("[WARN] Failed to log in with stored cookies\n")
@@ -72,9 +79,10 @@ func auth(isSilent bool) (err error) {
 	if authData.Creds != nil {
 		// Got stored credentials, using them to login
 		err = login(authData.Creds)
-		if err != nil {
-			printf("[WARN] Failed to log in with stored credentials (%s)\n", err)
+		if err == nil {
+			return
 		}
+		printf("[WARN] Failed to log in with stored credentials (%s)\n", err)
 	}
 	if !isSilent {
 		var creds *Creds
@@ -100,6 +108,7 @@ func inputCreds() (username, password string, err error) {
 	if err != nil {
 		return
 	}
+	username = strings.TrimSpace(username)
 
 	fmt.Print("Password: ")
 	var bytePassword []byte
@@ -109,7 +118,6 @@ func inputCreds() (username, password string, err error) {
 		return
 	}
 	fmt.Print("\n")
-	password = string(bytePassword)
-
+	password = strings.TrimSpace(string(bytePassword))
 	return
 }
