@@ -30,7 +30,7 @@ type Args struct {
 	MaxParallel int      `arg:"-j,--parallel-uploads" help:"maximum number of concurrent upload jobs"`
 	Login       string   `help:"email for Overcast account"`
 	Password    string   `help:"password for Overcast account"`
-	StoreCreds  bool     `arg:"--store-creds" help:"store credentials in secure system storge [default: false]"`
+	SaveCreds   bool     `arg:"--save-creds" help:"save credentials in secure system storge [default: false]"`
 	Silent      bool     `arg:"-s" help:"disable user interaction"`
 }
 
@@ -76,12 +76,13 @@ func loadCreds() {
 
 	data, err := keyring.Get(appName, "creds")
 	if err != nil {
-		printf("[WARN] Failed to load credentials: %s\n", err)
+		return
 	}
 
 	err = json.Unmarshal([]byte(data), &authData)
 	if err != nil {
 		printf("[WARN] Failed to load credentials: %s\n", err)
+		return
 	}
 }
 
@@ -106,7 +107,7 @@ func main() {
 	var args Args
 
 	// setup default args values
-	args.StoreCreds = false
+	args.SaveCreds = false
 	args.MaxParallel = 4
 
 	arg.MustParse(&args)
@@ -117,7 +118,12 @@ func main() {
 	}
 
 	if args.Silent {
-		outputStream, _ = os.Open(os.DevNull)
+		outputStream, err = os.Open(os.DevNull)
+		// sometimes i hate golang's insistance on errorchecking
+		if err != nil {
+			fmt.Println("Can't open null output, your os is broken:/")
+			os.Exit(-1)
+		}
 	} else {
 		outputStream = os.Stdout
 	}
@@ -135,7 +141,7 @@ func main() {
 		printf("[ERROR] Auth failed: %s", err)
 		os.Exit(-1)
 	}
-	if args.StoreCreds {
+	if args.SaveCreds {
 		defer saveCreds()
 	}
 
