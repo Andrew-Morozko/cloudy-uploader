@@ -50,7 +50,7 @@ func (job *Job) setEndState(msg string) {
 }
 
 func (job *Job) Done() {
-	job.setEndState("Done!")
+	job.setEndState("Uploaded!")
 }
 
 func (job *Job) SetError(msg string) {
