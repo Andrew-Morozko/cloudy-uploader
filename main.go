@@ -92,7 +92,7 @@ func saveCreds() {
 		return
 	}
 
-	keyring.Set(appName, "creds", string(data))
+	err = keyring.Set(appName, "creds", string(data))
 	if err != nil {
 		printf("[WARN] Failed to save credentials: %s\n", err)
 		return

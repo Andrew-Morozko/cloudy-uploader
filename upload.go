@@ -66,8 +66,7 @@ func (job *Job) GetUploadReader(reader io.Reader) io.ReadCloser {
 }
 
 func performUpload(jobs []*Job, maxParallel int) {
-	var bars *mpb.Progress
-	bars = mpb.New(mpb.WithOutput(outputStream))
+	bars := mpb.New(mpb.WithOutput(outputStream))
 
 	var bar *mpb.Bar
 	for _, job := range jobs {
