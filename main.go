@@ -27,10 +27,10 @@ var debug = false
 
 type Args struct {
 	Files       []string `arg:"--file,positional,required" help:"files to be uploaded"`
-	MaxParallel int      `arg:"-j,--parallel-uploads" help:"maximum number of concurrent upload jobs"`
+	MaxParallel int      `arg:"-j,--parallel-uploads" help:"maximum number of concurrent upload jobs" default:"4"`
 	Login       string   `help:"email for Overcast account"`
 	Password    string   `help:"password for Overcast account"`
-	SaveCreds   bool     `arg:"--save-creds" help:"save credentials in secure system storge [default: false]"`
+	SaveCreds   bool     `arg:"--save-creds" help:"save credentials in secure system storge" default:"false"`
 	Silent      bool     `arg:"-s" help:"disable user interaction"`
 }
 
@@ -106,10 +106,6 @@ var outputStream *os.File
 func main() {
 	var err error
 	var args Args
-
-	// setup default args values
-	args.SaveCreds = false
-	args.MaxParallel = 4
 
 	arg.MustParse(&args)
 
