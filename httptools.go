@@ -9,18 +9,9 @@ import (
 	"net/url"
 )
 
-type credState int
-
-const (
-	credStateUnchanged credState = iota
-	credStateModified
-	credStateReplaced
-)
-
 type AuthData struct {
 	Creds   *Creds
 	Cookies []*BasicCookie
-	state   credState
 	hash    [32]byte
 }
 
