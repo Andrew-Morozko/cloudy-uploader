@@ -80,8 +80,6 @@ func auth(isSilent bool) (err error) {
 		// Got stored credentials, using them to login
 		err = login(authData.Creds)
 		if err == nil {
-			// need to save the cookies
-			authData.state = credStateModified
 			return
 		}
 		printf("[WARN] Failed to log in with stored credentials (%s)\n", err)
@@ -96,16 +94,6 @@ func auth(isSilent bool) (err error) {
 		if err != nil {
 			return
 		}
-		if authData.Creds == nil {
-			authData.state = credStateReplaced
-		} else {
-			if creds.Email == authData.Creds.Email {
-				authData.state = credStateModified
-			} else {
-				authData.state = credStateReplaced
-			}
-		}
-
 		authData.Creds = creds
 		return
 	}
@@ -120,7 +108,7 @@ func inputCreds() (username, password string, err error) {
 		return
 	}
 	username = strings.TrimSpace(username)
-
+  
 	fmt.Print("Password: ")
 	var bytePassword []byte
 	bytePassword, err = terminal.ReadPassword(int(syscall.Stdin))
