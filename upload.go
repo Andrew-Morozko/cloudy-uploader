@@ -50,7 +50,7 @@ func (job *Job) setEndState(msg string) {
 }
 
 func (job *Job) Done() {
-	job.setEndState("Done!")
+	job.setEndState("Uploaded!")
 }
 
 func (job *Job) SetError(msg string) {
@@ -65,8 +65,8 @@ func (job *Job) GetUploadReader(reader io.Reader) io.ReadCloser {
 	return job.ProgressBars[1].ProxyReader(reader)
 }
 
-func performUpload(jobs []*Job) {
-	bars := mpb.New()
+func performUpload(jobs []*Job, maxParallel int) {
+	bars := mpb.New(mpb.WithOutput(outputStream))
 
 	var bar *mpb.Bar
 	for _, job := range jobs {
@@ -118,8 +118,8 @@ func performUpload(jobs []*Job) {
 		job.ProgressBars = append(job.ProgressBars, bar)
 	}
 
-	amazonUploadPermissionC := make(chan struct{}, args.MaxParallel)
-	for i := 0; i < args.MaxParallel; i++ {
+	amazonUploadPermissionC := make(chan struct{}, maxParallel)
+	for i := 0; i < maxParallel; i++ {
 		amazonUploadPermissionC <- struct{}{}
 	}
 	go func() {

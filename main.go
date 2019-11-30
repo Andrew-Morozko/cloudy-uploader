@@ -10,30 +10,28 @@ import (
 
 	"github.com/alexflint/go-arg"
 	"github.com/shibukawa/configdir"
+	"github.com/zalando/go-keyring"
 )
 
 const (
 	appName   = "cloudyuploader"
-	version   = "1.0.0-alpha"
+	version   = "1.0.0"
 	appURL    = "https://github.com/Andrew-Morozko/cloudy-uploader"
 	userAgent = appName + "/" + version + " CLI Uploader; " + appURL
 )
 
 var overcastURL *url.URL
 
-var args Args
-var config Config
+var authData AuthData
 var debug = false
-var configDir *configdir.Config
 
 type Args struct {
-	Files         []string `arg:"--file,positional,required" help:"files to be uploaded"`
-	MaxParallel   int      `arg:"-j,--parallel-uploads" help:"maximum number of concurrent upload jobs"`
-	Login         string   `help:"email for Overcast account"`
-	Password      string   `help:"password for Overcast account"`
-	StoreCookie   bool     `arg:"--store-cookie" help:"store cookie to skip authorization"`
-	StorePassword bool     `arg:"--store-password" help:"store (unencrypted) email/password [default: false]"`
-	Silent        bool     `arg:"-s" help:"disable user interaction"`
+	Files       []string `arg:"--file,positional,required" help:"files to be uploaded"`
+	MaxParallel int      `arg:"-j,--parallel-uploads" help:"maximum number of concurrent upload jobs" default:"4"`
+	Login       string   `help:"email for Overcast account"`
+	Password    string   `help:"password for Overcast account"`
+	SaveCreds   bool     `arg:"--save-creds" help:"save credentials in secure system storge" default:"true"`
+	Silent      bool     `arg:"-s" help:"disable user interaction"`
 }
 
 func (Args) Description() string {
@@ -43,57 +41,74 @@ Technically it's just a wrapper around upload a form at https://overcast.fm/uplo
 }
 
 func printf(format string, a ...interface{}) (int, error) {
-	if args.Silent {
-		return 0, nil
-	}
-	return fmt.Printf(format, a...)
+	return fmt.Fprintf(outputStream, format, a...)
 }
 
-func configLoad() {
+func migrateToKeyring() {
+	configDirs := configdir.New("", appName)
+	configDir := configDirs.QueryFolders(configdir.Global)[0]
+
+	if !configDir.Exists("config.json") {
+		return
+	}
 	data, err := configDir.ReadFile("config.json")
+	if err != nil {
+		printf("[WARN] Failed to read config file: %s\n", err)
+		return
+	}
+
+	var cfg AuthData
+	err = json.Unmarshal(data, &cfg)
+	if err != nil {
+		printf("[WARN] Invalid JSON config file\n")
+		return
+	}
+
+	err = keyring.Set(appName, "creds", string(data))
+	if err != nil {
+		printf("[WARN] Failed to save credentials: %s\n", err)
+	}
+	os.RemoveAll(configDir.Path)
+}
+
+func loadCreds() {
+	migrateToKeyring()
+
+	data, err := keyring.Get(appName, "creds")
+	if err != nil {
+		if err != keyring.ErrNotFound {
+			printf("[WARN] Failed to load credentials: %s\n", err)
+		}
+		return
+	}
+	authDataT, err := NewAuthData([]byte(data))
+	if err != nil {
+		printf("[WARN] Failed to load credentials: %s\n", err)
+		return
+	}
+	authData = *authDataT
+	client.Jar.SetCookies(overcastURL, authData.GetCookies())
+}
+
+func saveCreds() {
+	authData.SetCookies(client.Jar.Cookies(overcastURL))
+	data, err := authData.Marshal()
 	if err != nil {
 		return
 	}
 
-	err = json.Unmarshal(data, &config)
+	err = keyring.Set(appName, "creds", string(data))
 	if err != nil {
-		printf("WARN: Invalid JSON config file\n")
-	}
-
-	if len(config.Cookies) != 0 {
-		client.Jar.SetCookies(overcastURL, config.GetCookies())
+		printf("[WARN] Failed to save credentials: %s\n", err)
+		return
 	}
 }
 
-func configSave() {
-	configToSave := &Config{}
-
-	if args.StoreCookie {
-		configToSave.SetCookies(client.Jar.Cookies(overcastURL))
-	}
-	if args.StorePassword {
-		configToSave.Creds = config.Creds
-	}
-
-	data, err := json.Marshal(configToSave)
-	if err != nil {
-		printf("[WARN] Failed to save config: %s", err.Error())
-		os.Exit(-1)
-	}
-	err = configDir.WriteFile("config.json", data)
-	if err != nil {
-		printf("[WARN] Failed to save config: %s", err.Error())
-		os.Exit(-1)
-	}
-}
+var outputStream *os.File
 
 func main() {
 	var err error
-
-	// setup default args values
-	args.StoreCookie = true
-	args.StorePassword = false
-	args.MaxParallel = 4
+	var args Args
 
 	arg.MustParse(&args)
 
@@ -102,26 +117,30 @@ func main() {
 		os.Exit(-1)
 	}
 
+	if args.Silent {
+		outputStream, err = os.Open(os.DevNull)
+		// sometimes i hate golang's insistance on errorchecking
+		if err != nil {
+			fmt.Println("Can't open null output, your os is broken:/")
+			os.Exit(-1)
+		}
+	} else {
+		outputStream = os.Stdout
+	}
+
 	overcastURL, err = url.Parse("https://overcast.fm/")
 	if err != nil {
 		printf("[ERROR] %s", err)
 		os.Exit(-1)
 	}
 
-	// setup config
-	configDirs := configdir.New("", appName)
-	folders := configDirs.QueryFolders(configdir.Global)
-	configDir = folders[0]
+	loadCreds()
 
-	configLoad()
-
-	err = auth()
+	err = auth(args.Silent)
 	if err != nil {
 		printf("[ERROR] Auth failed: %s", err)
 		os.Exit(-1)
 	}
-
-	defer configSave()
 
 	allowedExts := []string{
 		".wav",
@@ -159,6 +178,7 @@ func main() {
 
 		if stat.Size() > overcastParams.MaxFileSize {
 			printf("[WARN] File \"%s\" is too large, max size %.2f GB\n", file, float64(overcastParams.MaxFileSize)/1000000000)
+			continue
 		}
 
 		totalSize += stat.Size()
@@ -181,6 +201,14 @@ func main() {
 		return
 	}
 
-	performUpload(jobs)
-	return
+	if authData.Changed() {
+		if args.SaveCreds {
+			saveCreds()
+		} else {
+			printf("[INFO] Credentials were changed but weren't saved.\n")
+			printf("       Use --save-creds to save them.\n")
+		}
+	}
+
+	performUpload(jobs, args.MaxParallel)
 }
