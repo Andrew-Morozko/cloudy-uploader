@@ -23,7 +23,11 @@ jobs:
     - name: Build
       run: |
         go build -v .
-        mv cloudy-uploader cloudyuploader
+        
+    - name: Move release
+      run: |
+        mkdir release
+        mv ./cloudy-uploader ./release/cloudyuploader
     
     - name: Upload artifact
       uses: actions/upload-artifact@v1.0.0
@@ -31,4 +35,4 @@ jobs:
         # Artifact name
         name: cloudyuploader
         # Directory containing files to upload
-        path: .
+        path: ./release
