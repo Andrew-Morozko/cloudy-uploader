@@ -77,7 +77,7 @@ func performUpload(jobs []*Job, maxParallel int) {
 			mpb.SpinnerOnLeft,
 			mpb.PrependDecorators(
 				decor.Name(jobTitle, decor.WCSyncSpaceR),
-				decor.Name("waiting", decor.WCSyncSpaceR),
+				decor.Name("Waiting", decor.WCSyncSpaceR),
 			),
 			mpb.AppendDecorators(
 				decor.Name(
@@ -92,7 +92,7 @@ func performUpload(jobs []*Job, maxParallel int) {
 			mpb.BarParkTo(bar),
 			mpb.PrependDecorators(
 				decor.Name(jobTitle, decor.WCSyncSpaceR),
-				decor.Name("uploading", decor.WCSyncSpaceR),
+				decor.Name("Uploading", decor.WCSyncSpaceR),
 				decor.Name("@ "),
 				decor.AverageSpeed(decor.UnitKB, "% .2f"),
 			),
@@ -104,7 +104,7 @@ func performUpload(jobs []*Job, maxParallel int) {
 		)
 		job.ProgressBars = append(job.ProgressBars, bar)
 
-		job.status = mbpdecor.Status("Waiting to submit upload", decor.WCSyncSpaceR)
+		job.status = mbpdecor.Status("Waiting", decor.WCSyncSpaceR)
 
 		bar = bars.AddSpinner(1,
 			mpb.SpinnerOnLeft,
