@@ -9,6 +9,7 @@ import (
 	"net/url"
 )
 
+
 type AuthData struct {
 	Creds   *Creds
 	Cookies []*BasicCookie

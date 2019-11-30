@@ -94,7 +94,6 @@ func auth(isSilent bool) (err error) {
 		if err != nil {
 			return
 		}
-
 		authData.Creds = creds
 		return
 	}
@@ -109,7 +108,7 @@ func inputCreds() (username, password string, err error) {
 		return
 	}
 	username = strings.TrimSpace(username)
-
+  
 	fmt.Print("Password: ")
 	var bytePassword []byte
 	bytePassword, err = terminal.ReadPassword(int(syscall.Stdin))
