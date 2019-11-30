@@ -15,7 +15,7 @@ import (
 
 const (
 	appName   = "cloudyuploader"
-	version   = "1.0.0-beta"
+	version   = "1.0.0"
 	appURL    = "https://github.com/Andrew-Morozko/cloudy-uploader"
 	userAgent = appName + "/" + version + " CLI Uploader; " + appURL
 )
@@ -30,7 +30,7 @@ type Args struct {
 	MaxParallel int      `arg:"-j,--parallel-uploads" help:"maximum number of concurrent upload jobs" default:"4"`
 	Login       string   `help:"email for Overcast account"`
 	Password    string   `help:"password for Overcast account"`
-	SaveCreds   bool     `arg:"--save-creds" help:"save credentials in secure system storge" default:"false"`
+	SaveCreds   bool     `arg:"--save-creds" help:"save credentials in secure system storge" default:"true"`
 	Silent      bool     `arg:"-s" help:"disable user interaction"`
 }
 
@@ -76,21 +76,24 @@ func loadCreds() {
 
 	data, err := keyring.Get(appName, "creds")
 	if err != nil {
+		if err != keyring.ErrNotFound {
+			printf("[WARN] Failed to load credentials: %s\n", err)
+		}
 		return
 	}
-
-	err = json.Unmarshal([]byte(data), &authData)
+	authDataT, err := NewAuthData([]byte(data))
 	if err != nil {
 		printf("[WARN] Failed to load credentials: %s\n", err)
 		return
 	}
+	authData = *authDataT
+	client.Jar.SetCookies(overcastURL, authData.GetCookies())
 }
 
 func saveCreds() {
 	authData.SetCookies(client.Jar.Cookies(overcastURL))
-	data, err := json.Marshal(authData)
+	data, err := authData.Marshal()
 	if err != nil {
-		printf("[WARN] Failed to save credentials: %s\n", err)
 		return
 	}
 
@@ -198,12 +201,7 @@ func main() {
 		return
 	}
 
-	performUpload(jobs, args.MaxParallel)
-	switch authData.state {
-	case credStateUnchanged:
-	case credStateModified:
-		saveCreds()
-	case credStateReplaced:
+	if authData.Changed() {
 		if args.SaveCreds {
 			saveCreds()
 		} else {
@@ -211,4 +209,6 @@ func main() {
 			printf("       Use --save-creds to save them.\n")
 		}
 	}
+
+	performUpload(jobs, args.MaxParallel)
 }

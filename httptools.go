@@ -1,7 +1,9 @@
 package main
 
 import (
+	"crypto/sha256"
 	"crypto/tls"
+	"encoding/json"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -19,6 +21,7 @@ type AuthData struct {
 	Creds   *Creds
 	Cookies []*BasicCookie
 	state   credState
+	hash    [32]byte
 }
 
 type BasicCookie struct {
@@ -47,6 +50,33 @@ func (c *AuthData) GetCookies() []*http.Cookie {
 	}
 
 	return res
+}
+
+func (c *AuthData) Marshal() ([]byte, error) {
+	return json.Marshal(authData)
+}
+
+func (c *AuthData) Changed() bool {
+	data, err := json.Marshal(authData)
+	if err != nil {
+		return false
+	}
+	return c.hash != sha256.Sum256(data)
+}
+
+func NewAuthData(data []byte) (res *AuthData, err error) {
+	res = &AuthData{}
+	err = json.Unmarshal(data, &res)
+	if err != nil {
+		return nil, err
+	}
+	// To have data in a normalized format
+	data, err = json.Marshal(authData)
+	if err != nil {
+		return nil, err
+	}
+	res.hash = sha256.Sum256(data)
+	return
 }
 
 type MyTransport struct {
