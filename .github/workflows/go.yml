@@ -21,12 +21,14 @@ jobs:
         go get -v -t -d ./...
 
     - name: Build
-      run: go build -v .
+      run: |
+        go build -v .
+        mv cloudy-uploader cloudyuploader
     
-#     - name: Upload artifact
-#       uses: actions/upload-artifact@v1.0.0
-#       with:
-#         # Artifact name
-#         name: 
-#         # Directory containing files to upload
-#         path: 
+    - name: Upload artifact
+      uses: actions/upload-artifact@v1.0.0
+      with:
+        # Artifact name
+        name: cloudyuploader
+        # Directory containing files to upload
+        path: .
