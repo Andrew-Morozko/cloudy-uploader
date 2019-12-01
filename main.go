@@ -201,13 +201,8 @@ func main() {
 		return
 	}
 
-	if authData.Changed() {
-		if args.SaveCreds {
-			saveCreds()
-		} else {
-			printf("[INFO] Credentials were changed but weren't saved.\n")
-			printf("       Use --save-creds to save them.\n")
-		}
+	if args.SaveCreds && authData.Changed() {
+		saveCreds()
 	}
 
 	performUpload(jobs, args.MaxParallel)
