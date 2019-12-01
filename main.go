@@ -13,9 +13,9 @@ import (
 	"github.com/zalando/go-keyring"
 )
 
-const (
+var (
 	appName   = "cloudyuploader"
-	version   = "1.0.1"
+	version   = "0.0.0-in-dev" // overriden on build
 	appURL    = "https://github.com/Andrew-Morozko/cloudy-uploader"
 	userAgent = appName + "/" + version + " CLI Uploader; " + appURL
 )
