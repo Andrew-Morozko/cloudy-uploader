@@ -1,3 +1,7 @@
+# 1.0.2
+
+- Nicer progress bar alignment
+
 # 1.0.1
 
 - Nicer help message

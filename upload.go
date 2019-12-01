@@ -77,12 +77,16 @@ func performUpload(jobs []*Job, maxParallel int) {
 			mpb.SpinnerOnLeft,
 			mpb.PrependDecorators(
 				decor.Name(jobTitle, decor.WCSyncSpaceR),
-				decor.Name("Waiting", decor.WCSyncSpaceR),
+				decor.Merge(
+					decor.Name("Waiting", decor.WCSyncWidthR),
+					decor.WCSyncWidthR,
+					decor.WCSyncWidth,
+				),
 			),
 			mpb.AppendDecorators(
 				decor.Name(
 					fmt.Sprintf("% .1f", decor.SizeB1000(job.FileSize)),
-					decor.WCSyncSpaceR,
+					decor.WCSyncWidth,
 				),
 			),
 		)
@@ -92,19 +96,18 @@ func performUpload(jobs []*Job, maxParallel int) {
 			mpb.BarParkTo(bar),
 			mpb.PrependDecorators(
 				decor.Name(jobTitle, decor.WCSyncSpaceR),
-				decor.Name("Uploading", decor.WCSyncSpaceR),
-				decor.Name("@ "),
-				decor.AverageSpeed(decor.UnitKB, "% .2f"),
+				decor.Name("Uploading @ ", decor.WCSyncWidthR),
+				decor.AverageSpeed(decor.UnitKB, "% .2f", decor.WCSyncWidth),
 			),
 			mpb.AppendDecorators(
-				decor.CountersKiloByte("% .1f/% .1f", decor.WCSyncSpaceR),
-				decor.Name("ETA", decor.WCSyncSpaceR),
+				decor.CountersKiloByte("% .1f / % .1f", decor.WCSyncWidth),
+				decor.Name("ETA ", decor.WCSyncSpace),
 				decor.EwmaETA(decor.ET_STYLE_MMSS, 90.0, decor.WCSyncSpaceR),
 			),
 		)
 		job.ProgressBars = append(job.ProgressBars, bar)
 
-		job.status = mbpdecor.Status("Waiting", decor.WCSyncSpaceR)
+		job.status = mbpdecor.Status("Waiting", decor.WCSyncWidthR)
 
 		bar = bars.AddSpinner(1,
 			mpb.SpinnerOnLeft,
@@ -112,7 +115,11 @@ func performUpload(jobs []*Job, maxParallel int) {
 			mpb.BarClearOnComplete(),
 			mpb.PrependDecorators(
 				decor.Name(jobTitle, decor.WCSyncSpaceR),
-				job.status,
+				decor.Merge(
+					job.status,
+					decor.WCSyncWidthR,
+					decor.WCSyncWidth,
+				),
 			),
 		)
 		job.ProgressBars = append(job.ProgressBars, bar)
@@ -160,6 +167,8 @@ func performUpload(jobs []*Job, maxParallel int) {
 			}()
 		}
 	}
+
+	bars.Wait()
 }
 
 func dumpBytesFromBuf(byteBuf *bytes.Buffer) (*[]byte, error) {

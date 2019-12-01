@@ -16,7 +16,7 @@ func Status(status string, wcc ...decor.WC) *StatusDecorator {
 	for _, widthConf := range wcc {
 		wc = widthConf
 	}
-	wc.Init()
+
 	d := &StatusDecorator{
 		WC:     wc.Init(),
 		status: status,
