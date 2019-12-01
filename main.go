@@ -15,7 +15,7 @@ import (
 
 const (
 	appName   = "cloudyuploader"
-	version   = "1.0.0"
+	version   = "1.0.1"
 	appURL    = "https://github.com/Andrew-Morozko/cloudy-uploader"
 	userAgent = appName + "/" + version + " CLI Uploader; " + appURL
 )
@@ -27,7 +27,7 @@ var debug = false
 
 type Args struct {
 	Files       []string `arg:"--file,positional,required" help:"files to be uploaded"`
-	MaxParallel int      `arg:"-j,--parallel-uploads" help:"maximum number of concurrent upload jobs" default:"4"`
+	MaxParallel int      `arg:"-j,--parallel-uploads" help:"maximum number of concurrent upload jobs" default:"4" placeholder:"N"`
 	Login       string   `help:"email for Overcast account"`
 	Password    string   `help:"password for Overcast account"`
 	SaveCreds   bool     `arg:"--save-creds" help:"save credentials in secure system storge" default:"true"`
