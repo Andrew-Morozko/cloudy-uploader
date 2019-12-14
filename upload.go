@@ -17,7 +17,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/vbauerster/mpb/v4"
 	"github.com/vbauerster/mpb/v4/decor"
-	"golang.org/x/sync/errgroup"
 )
 
 type Job struct {
@@ -65,7 +64,7 @@ func (job *Job) GetUploadReader(reader io.Reader) io.ReadCloser {
 	return job.ProgressBars[1].ProxyReader(reader)
 }
 
-func performUpload(jobs []*Job, maxParallel int, overcastParams *OvercastParams) {
+func performUpload(jobs []*Job, maxParallel int, unorderedSubmit bool, overcastParams *OvercastParams) {
 	bars := mpb.New()
 
 	var bar *mpb.Bar
@@ -139,45 +138,55 @@ func performUpload(jobs []*Job, maxParallel int, overcastParams *OvercastParams)
 					job.SetError(err.Error())
 				}
 				close(job.amazonUploadDone)
+				if unorderedSubmit {
+					job.status.SetStatus("Submitting")
+					err := submitToOvercast(job, overcastParams.DataKeyPrefix)
+					if err != nil {
+						job.SetError(err.Error())
+					} else {
+						job.Done()
+					}
+				}
 			}(job)
 		}
 	}()
 
-	overcastSubmitPermissionC := make(chan struct{}, 1)
-	overcastSubmitPermissionC <- struct{}{}
-	overcastSubmitDelay := 2 * time.Second
+	if !unorderedSubmit {
+		overcastSubmitPermissionC := make(chan struct{}, 1)
+		overcastSubmitPermissionC <- struct{}{}
+		overcastSubmitDelay := 2 * time.Second
 
-	for _, job := range jobs {
-		<-job.amazonUploadDone
-		if job.isDone {
-			continue
-		}
+		for _, job := range jobs {
+			<-job.amazonUploadDone
+			if job.isDone {
+				continue
+			}
 
-		<-overcastSubmitPermissionC
-		job.status.SetStatus("Submitting")
-		err := submitToOvercast(job, overcastParams.DataKeyPrefix)
-		if err != nil {
-			job.SetError(err.Error())
-			overcastSubmitPermissionC <- struct{}{}
-		} else {
-			job.Done()
-			go func() {
-				time.Sleep(overcastSubmitDelay)
+			<-overcastSubmitPermissionC
+			job.status.SetStatus("Submitting")
+			err := submitToOvercast(job, overcastParams.DataKeyPrefix)
+			if err != nil {
+				job.SetError(err.Error())
 				overcastSubmitPermissionC <- struct{}{}
-			}()
+			} else {
+				job.Done()
+				time.AfterFunc(overcastSubmitDelay, func() {
+					overcastSubmitPermissionC <- struct{}{}
+				})
+			}
 		}
 	}
 
 	bars.Wait()
 }
 
-func dumpBytesFromBuf(byteBuf *bytes.Buffer) (*[]byte, error) {
+func dumpBytesFromBuf(byteBuf *bytes.Buffer) ([]byte, error) {
 	array := make([]byte, byteBuf.Len())
 	_, err := byteBuf.Read(array)
 	if err != nil {
 		return nil, err
 	}
-	return &array, nil
+	return array, nil
 }
 
 func uploadToAmazon(job *Job, uploadUrl string, postData map[string]string) (err error) {
@@ -212,60 +221,40 @@ func uploadToAmazon(job *Job, uploadUrl string, postData map[string]string) (err
 	}
 
 	//calculate content length
-	totalSize := int64(len(*multipartStart)) + job.FileSize + int64(len(*multipartEnd))
+	totalSize := int64(len(multipartStart)) + job.FileSize + int64(len(multipartEnd))
 	job.BeginUpload(totalSize)
 
-	//use pipe to pass request
-	rd, wr := io.Pipe()
-
-	errG := errgroup.Group{}
-
-	// Stream file
-	errG.Go(func() (err error) {
-		defer wr.Close()
-		file, err := os.Open(job.File)
-		if err != nil {
-			return
-		}
-		defer file.Close()
-
-		_, err = wr.Write(*multipartStart)
-		if err != nil {
-			return
-		}
-		_, err = io.Copy(wr, file)
-		if err != nil {
-			return
-		}
-		_, err = wr.Write(*multipartEnd)
+	file, err := os.Open(job.File)
+	if err != nil {
 		return
-	})
+	}
+	defer file.Close()
 
-	// Send file
-	errG.Go(func() (err error) {
-		defer rd.Close()
-		req, err := http.NewRequest("POST", uploadUrl, job.GetUploadReader(rd))
-		if err != nil {
-			return
-		}
+	comboReader := io.MultiReader(
+		bytes.NewReader(multipartStart),
+		io.LimitReader(file, job.FileSize), // Just in case the file would be modified while uploading
+		bytes.NewReader(multipartEnd),
+	)
 
-		req.Header.Set("Content-Type", mpWriter.FormDataContentType())
-		req.Header.Set("Origin", "https://overcast.fm")
-		req.ContentLength = totalSize
-
-		resp, err := client.Do(req)
-		if err != nil {
-			return
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != 204 {
-			return errors.Errorf("Unexpected status code from amazon: %d", resp.StatusCode)
-		}
+	req, err := http.NewRequest("POST", uploadUrl, job.GetUploadReader(comboReader))
+	if err != nil {
 		return
-	})
+	}
 
-	return errG.Wait()
+	req.Header.Set("Content-Type", mpWriter.FormDataContentType())
+	req.Header.Set("Origin", "https://overcast.fm")
+	req.ContentLength = totalSize
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return
+	}
+	resp.Body.Close()
+
+	if resp.StatusCode != 204 {
+		return errors.Errorf("Unexpected status code from amazon: %d", resp.StatusCode)
+	}
+	return
 }
 
 func submitToOvercast(job *Job, dataKeyPrefix string) (err error) {
@@ -277,20 +266,18 @@ func submitToOvercast(job *Job, dataKeyPrefix string) (err error) {
 	if err != nil {
 		return
 	}
-	mpWriter.Close()
-
-	multipartBytes, err := dumpBytesFromBuf(byteBuf)
+	err = mpWriter.Close()
 	if err != nil {
 		return
 	}
 
-	req, err := http.NewRequest("POST", "https://overcast.fm/podcasts/upload_succeeded", bytes.NewReader(*multipartBytes))
+	req, err := http.NewRequest("POST", "https://overcast.fm/podcasts/upload_succeeded", byteBuf)
 	if err != nil {
 		return
 	}
 	req.Header.Set("Content-Type", mpWriter.FormDataContentType())
 	req.Header.Set("Origin", "https://overcast.fm")
-	req.ContentLength = int64(len(*multipartBytes))
+	req.ContentLength = int64(byteBuf.Len())
 
 	resp, err := client.Do(req)
 	if err != nil {
