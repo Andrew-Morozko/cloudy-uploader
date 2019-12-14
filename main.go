@@ -220,7 +220,7 @@ func PerformAuth(args *Args) (uploads *http.Response, err error) {
 	err = errors.New("all availible methods failed")
 	return
 }
-func parseFiles(files []string, overcastParams *OvercastParams) (totalSize int64, jobs []*Job) {
+func parseFiles(files []string, overcastParams *OvercastParams) (jobs []*Job) {
 	for _, file := range files {
 		if !allowedExts.Inclues(filepath.Ext(file)) {
 			fmt.Printf("[WARN] File \"%s\" is not allowed. Allowed extentions: %s\n", file, strings.Join(allowedExts, ", "))
@@ -245,9 +245,6 @@ func parseFiles(files []string, overcastParams *OvercastParams) (totalSize int64
 			)
 			continue
 		}
-
-		totalSize += fileSize
-
 		jobs = append(jobs, NewJob(file, fileSize))
 	}
 	return
@@ -256,41 +253,55 @@ func parseFiles(files []string, overcastParams *OvercastParams) (totalSize int64
 func main() {
 	var err error
 
+	defer func() {
+		if err != nil {
+			fmt.Printf("[ERROR] %s\n", err)
+			os.Exit(-1)
+		}
+	}()
+
 	args, err := parseArgs()
 	if err != nil {
-		fmt.Printf("[ERROR] Arguments error: %s\n", err)
-		os.Exit(-1)
+		err = errors.WithMessage(err, "Arguments error")
+		return
 	}
 
 	upl, err := PerformAuth(args)
 	if err != nil {
-		fmt.Printf("[ERROR] Auth failed: %s\n", err)
-		os.Exit(-1)
+		err = errors.WithMessage(err, "Auth failed")
+		return
 	}
 
 	overcastParams, err := parseUploadsPage(upl.Body)
 	upl.Body.Close()
 	if err != nil {
-		fmt.Printf("[ERROR] Failed to parse the uploads page: %s\n", err)
-		os.Exit(-1)
+		err = errors.WithMessage(err, "Failed to parse the uploads page")
+		return
 	}
 
-	totalSize, jobs := parseFiles(args.Files, overcastParams)
+	jobs := parseFiles(args.Files, overcastParams)
 
-	if totalSize > overcastParams.SpaceAvailible {
-		fmt.Printf("[WARN] Files are too large: total size=% .2f; you have % .2f availible\n", decor.SizeB1000(totalSize), decor.SizeB1000(overcastParams.SpaceAvailible))
+	if len(jobs) == 0 {
+		err = errors.New("No files to upload!")
 		return
 	}
 
 	if len(jobs) > overcastParams.MaxFileCount {
-		fmt.Printf("[WARN] You've chosen too many files(%d), you only have %d files remaining\n",
+		err = errors.Errorf("You've chosen too many files(%d), you only have %d files remaining",
 			len(jobs), overcastParams.MaxFileCount,
 		)
 		return
 	}
 
-	if len(jobs) == 0 {
-		fmt.Println("[WARN] No files to upload!")
+	var totalSize int64
+	for _, job := range jobs {
+		totalSize += job.FileSize
+	}
+
+	if totalSize > overcastParams.SpaceAvailible {
+		err = errors.Errorf("Files are too large: total size=% .2f; you have % .2f availible\n",
+			decor.SizeB1000(totalSize), decor.SizeB1000(overcastParams.SpaceAvailible),
+		)
 		return
 	}
 
