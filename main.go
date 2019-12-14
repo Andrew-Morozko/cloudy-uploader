@@ -43,13 +43,14 @@ func (el ExtList) Inclues(ext string) bool {
 }
 
 type Args struct {
-	Files       []string `arg:"--file,positional,required" help:"files to be uploaded"`
-	MaxParallel int      `arg:"-j,--parallel-uploads" help:"maximum number of concurrent upload jobs" default:"4" placeholder:"N"`
-	Login       string   `help:"email for Overcast account"`
-	Password    string   `help:"password for Overcast account"`
-	SaveCreds   *bool    `arg:"--save-creds" help:"save credentials in secure system storge"`
-	NoLoadCreds bool     `arg:"--no-load-creds" help:"do not use stored creds"`
-	Silent      bool     `arg:"-s" help:"disable user interaction"`
+	Files           []string `arg:"--file,positional,required" help:"files to be uploaded"`
+	Login           string   `help:"email for Overcast account"`
+	Password        string   `help:"password for Overcast account"`
+	SaveCreds       *bool    `arg:"--save-creds" help:"save credentials in secure system storge"`
+	NoLoadCreds     bool     `arg:"--no-load-creds" help:"do not use stored creds"`
+	MaxParallel     int      `arg:"-j,--parallel-uploads" help:"maximum number of concurrent uploads" default:"4" placeholder:"N"`
+	Silent          bool     `arg:"-s" help:"disable user interaction"`
+	UnorderedSubmit bool     `arg:"--unordered-submit" help:"don't wait to submit uploads in proper order"`
 }
 
 func (Args) Description() string {
@@ -305,5 +306,5 @@ func main() {
 		return
 	}
 
-	performUpload(jobs, args.MaxParallel, overcastParams)
+	performUpload(jobs, args.MaxParallel, args.UnorderedSubmit, overcastParams)
 }
