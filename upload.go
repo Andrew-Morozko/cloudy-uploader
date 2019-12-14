@@ -65,8 +65,8 @@ func (job *Job) GetUploadReader(reader io.Reader) io.ReadCloser {
 	return job.ProgressBars[1].ProxyReader(reader)
 }
 
-func performUpload(jobs []*Job, maxParallel int) {
-	bars := mpb.New(mpb.WithOutput(outputStream))
+func performUpload(jobs []*Job, maxParallel int, overcastParams *OvercastParams) {
+	bars := mpb.New()
 
 	var bar *mpb.Bar
 	for _, job := range jobs {
@@ -133,7 +133,7 @@ func performUpload(jobs []*Job, maxParallel int) {
 		for _, job := range jobs {
 			<-amazonUploadPermissionC
 			go func(job *Job) {
-				err := uploadToAmazon(job)
+				err := uploadToAmazon(job, overcastParams.UploadURL, overcastParams.PostData)
 				amazonUploadPermissionC <- struct{}{}
 				if err != nil {
 					job.SetError(err.Error())
@@ -155,7 +155,7 @@ func performUpload(jobs []*Job, maxParallel int) {
 
 		<-overcastSubmitPermissionC
 		job.status.SetStatus("Submitting")
-		err := submitToOvercast(job)
+		err := submitToOvercast(job, overcastParams.DataKeyPrefix)
 		if err != nil {
 			job.SetError(err.Error())
 			overcastSubmitPermissionC <- struct{}{}
@@ -180,14 +180,14 @@ func dumpBytesFromBuf(byteBuf *bytes.Buffer) (*[]byte, error) {
 	return &array, nil
 }
 
-func uploadToAmazon(job *Job) (err error) {
+func uploadToAmazon(job *Job, uploadUrl string, postData map[string]string) (err error) {
 	//buffer for storing multipart data
 	byteBuf := &bytes.Buffer{}
 
 	//part: parameters
 	mpWriter := multipart.NewWriter(byteBuf)
 
-	for key, value := range overcastParams.PostData {
+	for key, value := range postData {
 		err = mpWriter.WriteField(key, value)
 		if err != nil {
 			return
@@ -244,7 +244,7 @@ func uploadToAmazon(job *Job) (err error) {
 	// Send file
 	errG.Go(func() (err error) {
 		defer rd.Close()
-		req, err := http.NewRequest("POST", overcastParams.UploadURL, job.GetUploadReader(rd))
+		req, err := http.NewRequest("POST", uploadUrl, job.GetUploadReader(rd))
 		if err != nil {
 			return
 		}
@@ -268,11 +268,11 @@ func uploadToAmazon(job *Job) (err error) {
 	return errG.Wait()
 }
 
-func submitToOvercast(job *Job) (err error) {
+func submitToOvercast(job *Job, dataKeyPrefix string) (err error) {
 	byteBuf := &bytes.Buffer{}
 	mpWriter := multipart.NewWriter(byteBuf)
 
-	amazonKey := overcastParams.DataKeyPrefix + job.FileName
+	amazonKey := dataKeyPrefix + job.FileName
 	err = mpWriter.WriteField("key", amazonKey)
 	if err != nil {
 		return

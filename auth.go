@@ -1,11 +1,10 @@
 package main
 
 import (
-	"bufio"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"syscall"
 
@@ -13,12 +12,28 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 )
 
+type AuthData struct {
+	Creds   *Creds
+	Cookies BasicCookies
+}
+
+type BasicCookie struct {
+	Name  string
+	Value string
+}
+
+type BasicCookies []*BasicCookie
+
 type Creds struct {
 	Email    string
 	Password string
 }
 
-func login(creds *Creds) (err error) {
+func (creds *Creds) Auth() (uploads *http.Response, err error) {
+	if creds == nil || (creds.Email == "" && creds.Password == "") {
+		return nil, errors.New("no credentials")
+	}
+
 	postdata := url.Values{
 		"then":     {"uploads"},
 		"email":    {creds.Email},
@@ -27,96 +42,147 @@ func login(creds *Creds) (err error) {
 
 	resp, err := client.PostForm("https://overcast.fm/login", postdata)
 	if err != nil {
-		return err
+		return
 	}
-
-	defer resp.Body.Close()
+	defer func() {
+		if err != nil {
+			resp.Body.Close()
+		}
+	}()
 
 	if resp.StatusCode != 200 {
-		return errors.Errorf("Unexpected HTTP response on login: %d", resp.StatusCode)
+		err = errors.Errorf("unexpected HTTP response on login: %d", resp.StatusCode)
+		return
 	}
 
 	if strings.HasSuffix(resp.Request.URL.Path, "login") {
-		return errors.New("Failed to login: wrong password")
+		err = errors.New("failed to login: wrong password")
+		return
 	}
 
 	if !strings.HasSuffix(resp.Request.URL.Path, "uploads") {
-		return errors.Errorf("Failed to login: Request in unknown place %s", resp.Request.URL.String())
+		err = errors.Errorf("failed to login: request in unknown place %s", resp.Request.URL.String())
+		return
 	}
 
-	return parseUploadsPage(resp.Body)
+	return resp, nil
 }
 
-func requestPassword() (creds *Creds, err error) {
-	creds = &Creds{}
-	creds.Email, creds.Password, err = inputCreds()
+func (bc BasicCookies) Auth() (uploads *http.Response, err error) {
+	if len(bc) == 0 {
+		return nil, errors.New("no cookies found")
+	}
+
+	cookies := make([]*http.Cookie, len(bc))
+	for i, cookie := range bc {
+		cookies[i] = &http.Cookie{
+			Name:  cookie.Name,
+			Value: cookie.Value,
+		}
+	}
+	client.Jar.SetCookies(overcastURL, cookies)
+
+	uploads, err = client.Get("https://overcast.fm/uploads")
+	if err != nil {
+		err = errors.WithMessage(err, "failed to load uploads page")
+		return
+	}
+	defer func() {
+		if err != nil {
+			uploads.Body.Close()
+			uploads = nil
+		}
+	}()
+
+	if !strings.HasSuffix(uploads.Request.URL.Path, "uploads") {
+		err = errors.New("cookies have expired")
+		return
+	}
+
 	return
 }
 
-func auth(isSilent bool) (err error) {
-	if len(authData.Cookies) != 0 {
-		// attempting to access with saved cookies
-		var resp *http.Response
-		resp, err = client.Get("https://overcast.fm/uploads")
-		if err == nil {
-			defer resp.Body.Close()
+var staleCookiesErr = errors.New("Cookies are stale, but password had worked")
 
-			if strings.HasSuffix(resp.Request.URL.Path, "uploads") {
-				// Wasn't redirected to /login, so cookies are valid
-				err = parseUploadsPage(resp.Body)
-				if err != nil {
-					printf("[WARN] Failed to parse uploads page: %s\n", err)
-				}
-				return
-			} else {
-				// Clear the bad cookies
-				authData.Cookies = nil
+func (ad *AuthData) Auth() (uploads *http.Response, err error) {
+	defer func() {
+		// on successful authorization
+		if err == nil || err == staleCookiesErr {
+			ad.saveCookies()
+		}
+	}()
+
+	if ad == nil {
+		return nil, errors.New("no auth data found")
+	}
+	if len(ad.Cookies) != 0 {
+		uploads, err = ad.Cookies.Auth()
+		if err == nil {
+			return
+		}
+
+	}
+	if ad.Creds != nil {
+		uploads, err = ad.Creds.Auth()
+		if err == nil {
+			if len(ad.Cookies) != 0 {
+				err = staleCookiesErr
 			}
-		}
-		printf("[WARN] Failed to log in with stored cookies\n")
-	}
-
-	if authData.Creds != nil {
-		// Got stored credentials, using them to login
-		err = login(authData.Creds)
-		if err == nil {
 			return
 		}
-		printf("[WARN] Failed to log in with stored credentials (%s)\n", err)
 	}
-	if !isSilent {
-		var creds *Creds
-		creds, err = requestPassword()
-		if err != nil {
-			return
-		}
-		err = login(creds)
-		if err != nil {
-			return
-		}
-		authData.Creds = creds
-		return
-	}
-	return errors.New("Failed to login")
+	return
 }
 
-func inputCreds() (username, password string, err error) {
-	reader := bufio.NewReader(os.Stdin)
-	fmt.Print("Email: ")
-	username, err = reader.ReadString('\n')
-	if err != nil {
-		return
+func (ad *AuthData) saveCookies() {
+	cookies := client.Jar.Cookies(overcastURL)
+	ad.Cookies = make([]*BasicCookie, len(cookies))
+	for i, cookie := range cookies {
+		ad.Cookies[i] = &BasicCookie{
+			Name:  cookie.Name,
+			Value: cookie.Value,
+		}
 	}
-	username = strings.TrimSpace(username)
-  
+}
+
+func (ad *AuthData) GetCookies() []*http.Cookie {
+	res := make([]*http.Cookie, len(ad.Cookies))
+
+	for i, cookie := range ad.Cookies {
+		res[i] = &http.Cookie{
+			Name:  cookie.Name,
+			Value: cookie.Value,
+		}
+	}
+
+	return res
+}
+
+func ParseAuthData(data []byte) (res *AuthData, err error) {
+	res = &AuthData{}
+	err = json.Unmarshal(data, &res)
+	return
+}
+
+func inputCreds() (creds *Creds) {
+	creds = &Creds{}
+	var err error
+	creds.Email, err = Input("Email: ")
+	if err != nil {
+		fmt.Printf("[WARN] Failed to read email: %s\n", err)
+		return nil
+	}
+
 	fmt.Print("Password: ")
 	var bytePassword []byte
 	bytePassword, err = terminal.ReadPassword(int(syscall.Stdin))
-	if err != nil {
-		err = errors.Wrap(err, "Failed to enter the password")
-		return
-	}
 	fmt.Print("\n")
-	password = strings.TrimSpace(string(bytePassword))
+
+	if err != nil {
+		fmt.Printf("[WARN] Failed to read password: %s\n", err)
+		return nil
+	} else {
+		creds.Password = strings.TrimSpace(string(bytePassword))
+	}
 	return
 }
