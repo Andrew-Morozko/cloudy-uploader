@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -26,6 +27,7 @@ var (
 var overcastURL = URLMustParse("https://overcast.fm/")
 var debug = false
 var client = NewHTTPClient()
+var keyringUsable = true
 
 var allowedExts = ExtList{"mp3", "m4a", "aac", "wav", "m4b"}
 
@@ -87,24 +89,40 @@ func migrateToKeyring() {
 }
 
 func loadCreds() (authData *AuthData) {
+	if !keyringUsable {
+		return nil
+	}
 	migrateToKeyring()
 
 	data, err := keyring.Get(appName, "creds")
 	if err != nil {
-		if err != keyring.ErrNotFound {
-			fmt.Printf("[WARN] Failed to load credentials: %s\n", err)
+		if err == keyring.ErrNotFound {
+			return
 		}
-		return nil
+		if t, ok := err.(*exec.ExitError); ok {
+			if t.ExitCode() == 36 {
+				keyringUsable = false
+				fmt.Println("[WARN] Your keychain is locked!")
+				fmt.Println(`[WARN] To use stored credentials you should unlock it by running "security unlock-keychain" command.`)
+				return
+			}
+		}
+
+		fmt.Printf("[WARN] Failed to load credentials: %s\n", err)
+		return
 	}
 	authData, err = ParseAuthData([]byte(data))
 	if err != nil {
 		fmt.Printf("[WARN] Failed to load credentials: %s\n", err)
-		return nil
+		authData = nil
 	}
 	return
 }
 
 func saveCreds(ad *AuthData) {
+	if !keyringUsable {
+		return
+	}
 	data, err := json.Marshal(ad)
 	if err != nil {
 		return
@@ -112,6 +130,15 @@ func saveCreds(ad *AuthData) {
 
 	err = keyring.Set(appName, "creds", string(data))
 	if err != nil {
+		if t, ok := err.(*exec.ExitError); ok {
+			if t.ExitCode() == 36 {
+				keyringUsable = false
+				fmt.Println("[WARN] Your keychain is locked!")
+				fmt.Println(`[WARN] To save credentials you should unlock it by running "security unlock-keychain" command.`)
+				return
+			}
+		}
+
 		fmt.Printf("[WARN] Failed to save credentials: %s\n", err)
 		return
 	}
