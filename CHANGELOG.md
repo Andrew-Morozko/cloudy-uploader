@@ -1,3 +1,9 @@
+# 1.1.1
+
+- Added darwin/arm64 binary for new M1 computers.
+- Nicer progress bar alignment, once again.
+- Updated dependencies.
+
 # 1.1.0
 
 - Fixed bug with --login and --password not being used
@@ -5,14 +11,14 @@
 - More documentation
 - Configurable ordered submission of uploads to Overcast server:
 
-Overcast used to order the `Uploads` feed by date of submission of the file to the Overcast server. 
+Overcast used to order the `Uploads` feed by date of submission of the file to the Overcast server.
 Because of this `cloudyuploader` submitted the uploaded files in strict order, otherwise they showed up in a mixed up.
 
 While I wasn't looking Marco changed the ordering of `Uploads` feed: now it's ordered by the file name.
-However, the upload date still is used in some places. It definitely controls the order of 
+However, the upload date still is used in some places. It definitely controls the order of
 [Recent Episodes](https://overcast.fm/podcasts) on the web, and may be used in playlist ordering (didn't check that).
 
-Because of that there's a new option `--unordered-submit`. It speeds up uploads somewhat, but file upload dates 
+Because of that there's a new option `--unordered-submit`. It speeds up uploads somewhat, but file upload dates
 become disordered.
 
 - Massive refactoring, now `cloudyuploader` resembles maintainable code.
