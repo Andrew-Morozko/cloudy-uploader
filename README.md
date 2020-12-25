@@ -3,14 +3,13 @@
 
 It's just a wrapper around upload a form at [https://overcast.fm/uploads](https://overcast.fm/uploads).
 
-I wanted to automate the uploading of my mp3s to my favorite podcast player and decided to share it here.
-Sorry for the code quality, this is also my first go project. It works, whatever;) Issues and pull requests are welcome.
+I wanted to automate the uploading of my mp3s to my favorite podcast player and decided to share it here. Sorry for the code quality, this is also my first go project. It works, whatever;) Issues and pull requests are welcome.
 
 This project shouldn't cause any trouble, but I (of course) will shut it down if Marco isn't ok with it.
 
 ```
-Usage: cloudyuploader [--login LOGIN] [--password PASSWORD] 
-                      [--save-creds] [--no-load-creds] [--silent] 
+Usage: cloudyuploader [--login LOGIN] [--password PASSWORD]
+                      [--save-creds] [--no-load-creds] [--silent]
                       [--parallel-uploads N] [--unordered-submit] FILE [FILE ...]
 
 Positional arguments:
@@ -27,6 +26,9 @@ Options:
   --unordered-submit     don't wait to submit uploads in proper order
   --help, -h             display this help and exit
 ```
+
+## macOS first launch note
+You need to run `xattr -rc ./cloudyuploader` before launching the tool. Otherwise apple will helpfully suggest throwing the app in the trash since I'm not an Identified Developer. Still figuring out how to deal with this without paying apple $100/year, code signatures are a mess.
 
 ## Authentication
 
@@ -46,12 +48,8 @@ If you want to save the credentials to secure system storage:
 
 ### Note for macOS users
 
-In order to save or read the credentials from the keychain it should be unlocked. Normally unlocking
-your mac is all that's needed, however, this doesn't extend to ssh logins. If you are connecting over ssh
-you should execute `security unlock-keychain` command prior to running `cloudyuploader`.
+In order to save or read the credentials from the keychain it should be unlocked. Normally unlocking your mac is all that's needed, however, this doesn't extend to ssh logins. If you are connecting over ssh you should execute `security unlock-keychain` command prior to running `cloudyuploader`.
 
-`security unlock-keychain` could be automated, it accepts `-p PASSWORD` argument,
-but storing your keychain's (mac's) password in this way is really insecure.
+`security unlock-keychain` could be automated, it accepts `-p PASSWORD` argument, but storing your keychain's (mac's) password in this way is really insecure.
 
-Your best bet is to supply Overcast `--login` and `--password` via the command line, they are less important
-than your main keychain password.
+Your best bet is to supply Overcast `--login` and `--password` via the command line, they are less important than your main keychain password.
