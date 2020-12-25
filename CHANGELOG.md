@@ -1,6 +1,6 @@
 # 1.1.1
 
-- Added arm binary for new M1 computers.
+- Added darwin/arm64 binary for new M1 computers.
 - Nicer progress bar alignment, once again.
 
 # 1.1.0
