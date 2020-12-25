@@ -2,6 +2,7 @@
 
 - Added darwin/arm64 binary for new M1 computers.
 - Nicer progress bar alignment, once again.
+- Updated dependencies.
 
 # 1.1.0
 
