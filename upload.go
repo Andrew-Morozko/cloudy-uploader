@@ -78,7 +78,6 @@ func performUpload(jobs []*Job, maxParallel int, unorderedSubmit bool, overcastP
 				decor.Name(jobTitle, decor.WCSyncSpaceR),
 				decor.Merge(
 					decor.Name("Waiting", decor.WCSyncWidthR),
-					decor.WCSyncWidthR,
 					decor.WCSyncWidth,
 				),
 			),
@@ -86,6 +85,14 @@ func performUpload(jobs []*Job, maxParallel int, unorderedSubmit bool, overcastP
 				decor.Name(
 					fmt.Sprintf("% .1f", decor.SizeB1000(job.FileSize)),
 					decor.WCSyncWidth,
+				),
+				decor.Name(
+					"",
+					decor.WCSyncSpace,
+				),
+				decor.Name(
+					"",
+					decor.WCSyncSpaceR,
 				),
 			),
 		)
