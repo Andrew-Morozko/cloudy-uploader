@@ -1,3 +1,8 @@
+# 1.1.2
+
+- Universal binary for macOS (M1+amd64)
+- Version bump
+
 # 1.1.1
 
 - Added darwin/arm64 binary for new M1 computers.
