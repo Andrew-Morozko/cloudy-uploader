@@ -258,7 +258,7 @@ func uploadToAmazon(job *Job, uploadUrl string, postData map[string]string) (err
 	}
 	resp.Body.Close()
 
-	if resp.StatusCode != 204 {
+	if resp.StatusCode != 204 && resp.StatusCode != 201 {
 		return errors.Errorf("Unexpected status code from amazon: %d", resp.StatusCode)
 	}
 	return
